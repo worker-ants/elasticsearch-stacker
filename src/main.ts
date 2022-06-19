@@ -1,8 +1,6 @@
-'use strict';
-
 import { Client } from '@elastic/elasticsearch';
 import Stacker from './lib/stacker';
-import { DataType } from './lib/config';
+import { DataType } from './lib/enum/dataType';
 
 class TestStacker extends Stacker {
   protected async getIdCache(): Promise<bigint | number> {
@@ -14,7 +12,7 @@ class TestStacker extends Stacker {
   }
 
   protected async getLatestId(): Promise<bigint | number> {
-    return 1;
+    return 5;
   }
 
   protected async getItems(
@@ -42,10 +40,11 @@ const testStacker = new TestStacker(client, {
   dataType: DataType.DOC,
 });
 
+console.log('start');
 testStacker
   .main()
   .then(() => {
-    console.log('start');
+    console.log('started');
   })
   .catch((e) => {
     console.error(e);

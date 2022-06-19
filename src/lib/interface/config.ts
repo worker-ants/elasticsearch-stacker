@@ -1,7 +1,4 @@
-//declare type dataType = '_doc';
-export enum DataType {
-  DOC = '_doc',
-}
+import { DataType } from '../enum/dataType';
 
 export interface Config {
   chunkDelay: number;

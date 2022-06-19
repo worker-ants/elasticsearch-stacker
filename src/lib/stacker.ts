@@ -1,6 +1,6 @@
 import Client from '@elastic/elasticsearch/lib/client';
-import { Config } from './config';
-import { ChunkInfo } from './chunkInfo';
+import { Config } from './interface/config';
+import { ChunkInfo } from './interface/chunkInfo';
 
 export default abstract class Stacker {
   private readonly esClient: Client;
@@ -24,25 +24,26 @@ export default abstract class Stacker {
         itemCount: null,
       };
       try {
-        chunkInfo.currentId = await this.getCurrentId();
-        chunkInfo.latestId = await this.getLatestId();
+        await (async (chunkInfo) => {
+          chunkInfo.currentId = await this.getCurrentId();
+          chunkInfo.latestId = await this.getLatestId();
 
-        if (chunkInfo.currentId === chunkInfo.latestId) {
-          await this.delay(this.config.chunkDelay);
-          continue;
-        }
+          if (chunkInfo.currentId === chunkInfo.latestId) return;
 
-        chunkInfo.items = await this.getItems(
-          chunkInfo.currentId,
-          chunkInfo.latestId,
-        );
-        chunkInfo.maxId = this.getMaxIdFromItems(chunkInfo.items);
-        if (await this.syncItems(chunkInfo.items))
-          await this.setCurrentId(chunkInfo.maxId);
+          chunkInfo.items = await this.getItems(
+            chunkInfo.currentId,
+            chunkInfo.latestId,
+          );
+          chunkInfo.maxId = this.getMaxIdFromItems(chunkInfo.items);
+          chunkInfo.itemCount = chunkInfo.items?.length ?? null;
 
-        console.log(chunkInfo);
+          if (await this.syncItems(chunkInfo.items))
+            await this.setCurrentId(chunkInfo.maxId);
+        })(chunkInfo);
+
+        this.log(chunkInfo);
       } catch (e) {
-        console.error(chunkInfo, e);
+        this.error(e);
       }
 
       await this.delay(this.config.chunkDelay);
@@ -73,10 +74,10 @@ export default abstract class Stacker {
 
   protected abstract getMaxIdFromItems(items: any[]): bigint | number;
 
-  private async syncItems(items: any): Promise<boolean> {
+  private async syncItems(items: any[]): Promise<boolean> {
     const bulk = [];
 
-    items.foreach((item) => {
+    items.forEach((item) => {
       bulk.push({
         index: { _index: this.config.index, _type: this.config.dataType },
       });
@@ -96,5 +97,15 @@ export default abstract class Stacker {
         resolve(null);
       }, delay);
     });
+  }
+
+  public log(message: any) {
+    const now = new Date().toISOString();
+    console.log(`[${now}]`, message);
+  }
+
+  public error(e: any) {
+    const now = new Date().toISOString();
+    console.error(`[${now}]`, e);
   }
 }
