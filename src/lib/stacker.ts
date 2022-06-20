@@ -41,7 +41,7 @@ export default abstract class Stacker {
             await this.setCurrentId(chunkInfo.maxId);
         })(chunkInfo);
 
-        this.log(chunkInfo);
+        this.log({ ...chunkInfo, items: undefined });
       } catch (e) {
         this.error(e);
       }
@@ -76,19 +76,30 @@ export default abstract class Stacker {
 
   private async syncItems(items: any[]): Promise<boolean> {
     const bulk = [];
-
     items.forEach((item) => {
       bulk.push({
-        index: { _index: this.config.index, _type: this.config.dataType },
+        index: {
+          _index: this.config.index,
+          _id: item._id,
+          version_type: 'external_gte',
+          version: item._version,
+        },
       });
-      bulk.push(item);
+      bulk.push({
+        ...item,
+        _id: undefined,
+        _version: undefined,
+      });
     });
 
     const result = await this.esClient.bulk({
       body: bulk,
       refresh: 'wait_for',
     });
-    return !!result;
+
+    if (result?.errors) this.error(result);
+
+    return !result.errors;
   }
 
   private async delay(delay: number) {
