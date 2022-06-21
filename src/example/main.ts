@@ -32,18 +32,31 @@ class TestStacker extends Stacker {
         on duplicate key update position = position;`,
       [this.getAgentId()],
     );
+  }
 
+  public async setDummyData(total: number) {
+    await this.mysql.execute(`delete from dummy`);
+
+    const chunk = 1000;
+    const base = total / chunk;
+    const loop = Math.floor(base);
+    const remainder = (base - loop) * chunk;
     const now = () => {
       return new Date().getTime();
     };
+    const setBulkData = async (count) => {
+      const values = [];
+      for (let i = 0; i < count; i++) {
+        values.push([`test-${now()}`]);
+      }
+      await this.mysql.query(`insert into dummy (data) values ?;`, [values]);
+    };
 
-    //await this.mysql.execute(`delete from dummy`);
-    for (let i = 0; i < 5000; i++) {
-      await this.mysql.execute(
-        `insert into dummy (data, createAt, updateAt, deleteAt) values (?, current_timestamp, null, null);`,
-        [`test-${now()}`],
-      );
+    for (let i = 0; i < loop; i++) {
+      await setBulkData(chunk);
     }
+
+    await setBulkData(remainder);
   }
 
   protected async getIdCache(): Promise<bigint | number> {
@@ -133,8 +146,16 @@ class TestStacker extends Stacker {
     const testStacker = new TestStacker(esClient, config);
 
     await testStacker.initialize();
+
+    console.log('set dummy data');
+    await testStacker.setDummyData(
+      parseInt(process.env?.DUMMY_COUNT ?? '100000', 10),
+    );
+
+    console.log('run sync daemon');
     await testStacker.main();
   } catch (e) {
     console.error(e);
+    process.exit(1);
   }
 })();
