@@ -1,7 +1,7 @@
 import { Client } from '@elastic/elasticsearch';
 import { createConnection, Connection } from 'mysql2/promise';
-import Stacker from './lib/stacker';
-import { DataType } from './lib/enum/dataType';
+import Stacker from '../lib/stacker';
+import { DataType } from '../lib/enum/dataType';
 import 'dotenv/config';
 import { esConfig } from './config/es';
 import { mysqlConfig } from './config/mysql';

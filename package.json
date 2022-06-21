@@ -6,7 +6,7 @@
     "prebuild": "rimraf dist",
     "build": "tsc --build",
     "clean": "tsc --build --clean",
-    "start": "node ./dist/main.js"
+    "start": "node ./dist/example/main.js"
   },
   "author": "",
   "license": "ISC",
