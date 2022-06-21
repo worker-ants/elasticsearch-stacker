@@ -13,41 +13,40 @@ export default abstract class Stacker {
   }
 
   public async main() {
-    await this.setCurrentId(await this.getIdCache());
+    await this.setCurrentId(await this.getIdCache(), false);
 
     while (Infinity) {
-      const chunkInfo: ChunkInfo = {
-        currentId: null,
-        latestId: null,
-        items: null,
-        maxId: null,
-        itemCount: null,
-      };
       try {
-        await (async (chunkInfo) => {
-          chunkInfo.currentId = await this.getCurrentId();
-          chunkInfo.latestId = await this.getLatestId();
-
-          if (chunkInfo.currentId === chunkInfo.latestId) return;
-
-          chunkInfo.items = await this.getItems(
-            chunkInfo.currentId,
-            chunkInfo.latestId,
-          );
-          chunkInfo.maxId = this.getMaxIdFromItems(chunkInfo.items);
-          chunkInfo.itemCount = chunkInfo.items?.length ?? null;
-
-          if (await this.syncItems(chunkInfo.items))
-            await this.setCurrentId(chunkInfo.maxId);
-        })(chunkInfo);
-
-        this.log({ ...chunkInfo, items: undefined });
+        const result = await this.execChunk();
+        if (result !== null) this.log({ ...result, items: undefined });
       } catch (e) {
-        this.error(e);
+        this.error({
+          currentId: this.getCurrentId(),
+          exception: e,
+        });
       }
-
       await this.delay(this.config.chunkDelay);
     }
+  }
+
+  protected async execChunk(): Promise<ChunkInfo> {
+    const currentId = this.getCurrentId();
+    const latestId = await this.getLatestId();
+
+    if (currentId === latestId) return null;
+
+    const items = await this.getItems(currentId, latestId);
+    const maxId = this.getMaxIdFromItems(items);
+
+    if (await this.syncItems(items)) await this.setCurrentId(maxId);
+
+    return {
+      currentId: currentId,
+      itemCount: items.length,
+      items: items,
+      latestId: latestId,
+      maxId: maxId,
+    };
   }
 
   protected abstract getIdCache(): Promise<bigint | number>;
@@ -57,9 +56,14 @@ export default abstract class Stacker {
     return this.currentId;
   }
 
-  private async setCurrentId(latestId: bigint | number) {
+  private async setCurrentId(
+    latestId: bigint | number,
+    setCache = false,
+  ): Promise<boolean> {
+    if (this.currentId === latestId) return true;
+
     this.currentId = latestId;
-    await this.setIdCache(latestId);
+    return setCache ? await this.setIdCache(latestId) : true;
   }
 
   /**
@@ -110,13 +114,13 @@ export default abstract class Stacker {
     });
   }
 
-  public log(message: any) {
+  public log(message: any, toJson = true) {
     const now = new Date().toISOString();
-    console.log(`[${now}]`, message);
+    console.log(`[${now}]`, toJson ? JSON.stringify(message) : message);
   }
 
-  public error(e: any) {
+  public error(e: any, toJson = true) {
     const now = new Date().toISOString();
-    console.error(`[${now}]`, e);
+    console.error(`[${now}]`, toJson ? JSON.stringify(e) : e);
   }
 }
