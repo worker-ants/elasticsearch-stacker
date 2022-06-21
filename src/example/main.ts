@@ -6,9 +6,15 @@ import 'dotenv/config';
 import { esConfig } from './config/es';
 import { mysqlConfig } from './config/mysql';
 
+const config = {
+  chunkDelay: parseInt(process.env.CHUNK_DELAY ?? '100', 10),
+  index: process.env.ES_INDEX ?? 'test',
+  dataType: DataType.DOC,
+};
+
 class TestStacker extends Stacker {
-  private agentName = 'agent-1';
-  private chunkLimit = 100;
+  private agentName = process.env.AGENT_NAME ?? 'agent-1';
+  private chunkLimit = parseInt(process.env.CHUNK_LIMIT ?? '1000', 10);
   private mysql: Connection;
 
   public async initialize() {
@@ -31,7 +37,7 @@ class TestStacker extends Stacker {
       return new Date().getTime();
     };
 
-    await this.mysql.execute(`delete from dummy`);
+    //await this.mysql.execute(`delete from dummy`);
     for (let i = 0; i < 5000; i++) {
       await this.mysql.execute(
         `insert into dummy (data, createAt, updateAt, deleteAt) values (?, current_timestamp, null, null);`,
@@ -74,11 +80,21 @@ class TestStacker extends Stacker {
     );
 
     return Object.values(rows).map((item) => {
+      item.createAt = item?.createAt
+        ? new Date(item.createAt).toISOString()
+        : null;
+      item.updateAt = item?.updateAt
+        ? new Date(item.updateAt).toISOString()
+        : null;
+      item.deleteAt = item?.deleteAt
+        ? new Date(item.deleteAt).toISOString()
+        : null;
+
       const version = Math.max(
         0,
-        item?.createAt ?? 0,
-        item?.updateAt ?? 0,
-        item?.deleteAt ?? 0,
+        item.createAt ? new Date(item.createAt).getTime() : 0,
+        item.updateAt ? new Date(item.updateAt).getTime() : 0,
+        item.deleteAt ? new Date(item.deleteAt).getTime() : 0,
       );
       return {
         _id: `id_${item.id}`,
@@ -107,16 +123,14 @@ class TestStacker extends Stacker {
   try {
     const esClient = new Client({
       nodes: [esConfig.host],
+      /*
       auth: {
         username: esConfig.user,
         password: esConfig.password,
       },
+       */
     });
-    const testStacker = new TestStacker(esClient, {
-      chunkDelay: 500,
-      index: 'test',
-      dataType: DataType.DOC,
-    });
+    const testStacker = new TestStacker(esClient, config);
 
     await testStacker.initialize();
     await testStacker.main();
