@@ -1,6 +1,7 @@
 import Client from '@elastic/elasticsearch/lib/client';
 import { Config } from './interface/config';
 import { ChunkInfo } from './interface/chunkInfo';
+import { EsData } from './interface/esItem';
 
 export default abstract class Stacker {
   private readonly esClient: Client;
@@ -30,6 +31,10 @@ export default abstract class Stacker {
       }
       await this.delay(this.config.chunkDelay);
     }
+  }
+
+  protected getIndexName(): string {
+    return this.config.index;
   }
 
   protected async execChunk(): Promise<ChunkInfo> {
@@ -77,26 +82,24 @@ export default abstract class Stacker {
   protected abstract getItems(
     startId: bigint | number,
     latestId: bigint | number,
-  ): Promise<any[]>;
+  ): Promise<EsData[]>;
 
-  protected abstract getMaxIdFromItems(items: any[]): bigint | number;
+  protected abstract getMaxIdFromItems(items: EsData[]): bigint | number;
 
-  private async syncItems(items: any[]): Promise<boolean> {
+  private async syncItems(items: EsData[]): Promise<boolean> {
     const bulk = [];
     items.forEach((item) => {
-      bulk.push({
-        index: {
-          _index: this.config.index,
-          _id: item._id,
-          version_type: 'external_gte',
-          version: item._version,
-        },
-      });
-      bulk.push({
-        ...item,
-        _id: undefined,
-        _version: undefined,
-      });
+      if (item.type === 'VersionedDocument') {
+        bulk.push({
+          index: {
+            _index: item.metadata.index,
+            _id: item.metadata.id,
+            version_type: item.metadata.versionType,
+            version: item.metadata.version,
+          },
+        });
+        bulk.push(item.source);
+      }
     });
 
     const result = await this.esClient.bulk({

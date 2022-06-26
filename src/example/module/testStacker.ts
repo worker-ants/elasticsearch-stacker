@@ -2,6 +2,7 @@ import { createConnection, Connection } from 'mysql2/promise';
 import Stacker from '../../lib/stacker';
 import 'dotenv/config';
 import { MysqlConfig } from '../config/mysql';
+import { VersionedDocument } from '../../lib/interface/esItem';
 
 export class TestStacker extends Stacker {
   private agentName = process.env.AGENT_NAME ?? 'agent-1';
@@ -83,9 +84,9 @@ export class TestStacker extends Stacker {
   protected async getItems(
     startId: bigint | number,
     latestId: bigint | number,
-  ): Promise<any[]> {
+  ): Promise<VersionedDocument[]> {
     const [rows] = await this.mysql.execute(
-      `select * from dummy where id > ? and id <= ? order by id ASC limit ?`,
+      `select * from dummy where id > ? and id <= ? order by id limit ?`,
       [startId, latestId, this.chunkLimit],
     );
 
@@ -107,14 +108,20 @@ export class TestStacker extends Stacker {
         item.deleteAt ? new Date(item.deleteAt).getTime() : 0,
       );
       return {
-        _id: `id_${item.id}`,
-        _version: parseInt(`${version}`, 10),
-        ...item,
+        id: item.id,
+        type: 'VersionedDocument',
+        metadata: {
+          index: this.getIndexName(),
+          id: `id_${item.id}`,
+          versionType: 'external_gte',
+          version: parseInt(`${version}`, 10),
+        },
+        source: item,
       };
     });
   }
 
-  protected getMaxIdFromItems(items: any[]): bigint | number {
+  protected getMaxIdFromItems(items: VersionedDocument[]): bigint | number {
     let maxId = null;
     items.forEach((item) => {
       if (item.id > maxId || maxId === null) maxId = item.id;
