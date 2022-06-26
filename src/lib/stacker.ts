@@ -18,7 +18,10 @@ export default abstract class Stacker {
     while (Infinity) {
       try {
         const result = await this.execChunk();
-        if (result !== null) this.log({ ...result, items: undefined });
+        if (result !== null)
+          this.log(
+            `range: ${result.currentId} ~ ${result.latestId} / selected: ${result.itemCount} items / latest ID: ${result.maxId}`,
+          );
       } catch (e) {
         this.error({
           currentId: this.getCurrentId(),

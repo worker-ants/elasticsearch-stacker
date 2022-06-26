@@ -28,7 +28,6 @@ services:
     ports:
       - ${MYSQL_PORT}:3306
     environment:
-      MYSQL_ROOT_PASSWORD: "root@votmdnjem"
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
