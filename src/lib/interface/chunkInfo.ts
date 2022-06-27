@@ -1,7 +1,10 @@
+import { Cursor } from '../type/cursor';
+
 export interface ChunkInfo {
-  currentId: bigint | number;
-  latestId: bigint | number;
+  cursor: {
+    current: Cursor;
+    latest: Cursor;
+    latestItems: Cursor;
+  };
   items: any[];
-  maxId: bigint | number;
-  itemCount: number;
 }

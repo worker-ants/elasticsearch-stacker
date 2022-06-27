@@ -2,11 +2,12 @@ import Client from '@elastic/elasticsearch/lib/client';
 import { Config } from './interface/config';
 import { ChunkInfo } from './interface/chunkInfo';
 import { EsData } from './interface/esItem';
+import { Cursor } from './type/cursor';
 
 export default abstract class Stacker {
   private readonly esClient: Client;
   private readonly config: Config;
-  private currentId: bigint | number;
+  private cursor: Cursor;
 
   constructor(esClient: Client, config: Config) {
     this.esClient = esClient;
@@ -14,18 +15,15 @@ export default abstract class Stacker {
   }
 
   public async main() {
-    await this.setCurrentId(await this.getIdCache(), false);
+    await this.setCursor(await this.getCursorCache(), false);
 
     while (Infinity) {
       try {
         const result = await this.execChunk();
-        if (result !== null)
-          this.log(
-            `range: ${result.currentId} ~ ${result.latestId} / selected: ${result.itemCount} items / latest ID: ${result.maxId}`,
-          );
+        if (result !== null) this.log(JSON.stringify(result.cursor));
       } catch (e) {
         this.error({
-          currentId: this.getCurrentId(),
+          cursor: this.getCursor(),
           exception: e,
         });
       }
@@ -38,53 +36,63 @@ export default abstract class Stacker {
   }
 
   protected async execChunk(): Promise<ChunkInfo> {
-    const currentId = this.getCurrentId();
-    const latestId = await this.getLatestId();
+    const currentCursor = this.getCursor();
+    const latestCursor = await this.getLatestCursor();
 
-    if (currentId === latestId) return null;
+    if (JSON.stringify(currentCursor) === JSON.stringify(latestCursor)) {
+      this.debug('cursor is not changed');
+      return null;
+    }
 
-    const items = await this.getItems(currentId, latestId);
-    const maxId = this.getMaxIdFromItems(items);
+    const items = await this.getItems(currentCursor, latestCursor);
 
-    if (await this.syncItems(items)) await this.setCurrentId(maxId);
+    if (!items.length) {
+      this.debug('not found items');
+      return null;
+    }
+    const latestCursorByItems = this.getLatestCursorByItems(items);
+
+    if (await this.syncItems(items)) await this.setCursor(latestCursorByItems);
 
     return {
-      currentId: currentId,
-      itemCount: items.length,
+      cursor: {
+        current: currentCursor,
+        latest: latestCursor,
+        latestItems: latestCursorByItems,
+      },
       items: items,
-      latestId: latestId,
-      maxId: maxId,
     };
   }
 
-  protected abstract getIdCache(): Promise<bigint | number>;
-  protected abstract setIdCache(currentId: bigint | number): Promise<boolean>;
+  protected abstract getCursorCache(): Promise<Cursor>;
+  protected abstract setCursorCache(cursor: Cursor): Promise<boolean>;
 
-  private getCurrentId() {
-    return this.currentId;
+  private getCursor() {
+    return this.cursor;
   }
 
-  private async setCurrentId(
-    latestId: bigint | number,
-    setCache = false,
+  private async setCursor(
+    latestCursor: Cursor,
+    setCache = true,
   ): Promise<boolean> {
-    if (this.currentId === latestId) return true;
+    if (JSON.stringify(this.getCursor()) === JSON.stringify(latestCursor))
+      return true;
 
-    this.currentId = latestId;
-    return setCache ? await this.setIdCache(latestId) : true;
+    this.cursor = latestCursor;
+    return setCache ? await this.setCursorCache(latestCursor) : true;
   }
 
   /**
    * get storage latest ID
    */
-  protected abstract getLatestId(): Promise<bigint | number>;
+  protected abstract getLatestCursor(): Promise<Cursor>;
 
   protected abstract getItems(
-    startId: bigint | number,
-    latestId: bigint | number,
+    startCursor: Cursor,
+    endCursor: Cursor,
   ): Promise<EsData[]>;
 
-  protected abstract getMaxIdFromItems(items: EsData[]): bigint | number;
+  protected abstract getLatestCursorByItems(items: EsData[]): Cursor;
 
   private async syncItems(items: EsData[]): Promise<boolean> {
     const bulk = [];
@@ -128,5 +136,10 @@ export default abstract class Stacker {
   public error(e: any, toJson = true) {
     const now = new Date().toISOString();
     console.error(`[${now}]`, toJson ? JSON.stringify(e) : e);
+  }
+
+  public debug(message: any, toJson = true) {
+    const now = new Date().toISOString();
+    console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
   }
 }
