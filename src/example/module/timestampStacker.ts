@@ -2,7 +2,11 @@ import { createConnection, Connection } from 'mysql2/promise';
 import Stacker from '../../lib/stacker';
 import 'dotenv/config';
 import { MysqlConfig } from '../config/mysql';
-import { VersionedDocument } from '../../lib/interface/esItem';
+import {
+  DeleteDocument,
+  EsData,
+  VersionedDocument,
+} from '../../lib/interface/esItem';
 import { Cursor } from '../../lib/type/cursor';
 import Client from '@elastic/elasticsearch/lib/client';
 import { Config } from '../../lib/interface/config';
@@ -92,7 +96,7 @@ export class TimestampStacker extends Stacker {
   protected async getItems(
     startCursor: TimestampCursor,
     endCursor: TimestampCursor,
-  ): Promise<VersionedDocument[]> {
+  ): Promise<EsData[]> {
     const getBaseQuery = (column: string): string => {
       return `
         select 
@@ -147,28 +151,37 @@ export class TimestampStacker extends Stacker {
         : null;
 
       const version = parseFloat(item.timestamp);
-      return {
-        cursor: version,
-        type: 'VersionedDocument',
-        metadata: {
-          index: this.getIndexName(),
-          id: `id_${item.id}`,
-          versionType: 'external_gte',
-          version: version,
-        },
-        source: item,
-      };
+      if (item.deleteAt) {
+        return {
+          cursor: version,
+          type: 'DeleteDocument',
+          metadata: {
+            index: this.getIndexName(),
+            id: `id_${item.id}`,
+          },
+        } as DeleteDocument;
+      } else {
+        return {
+          cursor: version,
+          type: 'VersionedDocument',
+          metadata: {
+            index: this.getIndexName(),
+            id: `id_${item.id}`,
+            versionType: 'external_gte',
+            version: version,
+          },
+          source: item,
+        } as VersionedDocument;
+      }
     });
   }
 
-  protected getLatestCursorByItems(
-    items: VersionedDocument[],
-  ): TimestampCursor {
-    const latestItem: VersionedDocument =
-      items?.[items.length - 1] ?? ({} as VersionedDocument);
+  protected getLatestCursorByItems(items: EsData[]): TimestampCursor {
+    const latestItem: EsData = items?.[items.length - 1] ?? ({} as EsData);
+    const id = String(latestItem?.metadata?.id ?? '');
     return {
       timestamp: latestItem?.cursor,
-      id: latestItem?.source?.id,
+      id: parseInt(id.replace(/^id_/, ''), 10) || null,
     } as TimestampCursor;
   }
 

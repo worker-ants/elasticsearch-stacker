@@ -97,16 +97,26 @@ export default abstract class Stacker {
   private async syncItems(items: EsData[]): Promise<boolean> {
     const bulk = [];
     items.forEach((item) => {
-      if (item.type === 'VersionedDocument') {
-        bulk.push({
-          index: {
-            _index: item.metadata.index,
-            _id: item.metadata.id,
-            version_type: item.metadata.versionType,
-            version: item.metadata.version,
-          },
-        });
-        bulk.push(item.source);
+      switch (item.type) {
+        case 'VersionedDocument':
+          bulk.push({
+            index: {
+              _index: item.metadata.index,
+              _id: item.metadata.id,
+              version_type: item.metadata.versionType,
+              version: item.metadata.version,
+            },
+          });
+          bulk.push(item.source);
+          break;
+        case 'DeleteDocument':
+          bulk.push({
+            delete: {
+              _index: item.metadata.index,
+              _id: item.metadata.id,
+            },
+          });
+          break;
       }
     });
 
@@ -120,9 +130,10 @@ export default abstract class Stacker {
       hasError = true;
 
       if (result?.items?.filter) {
-        const errors = result.items.filter(
-          (item) => !Stacker.isSuccess(item?.index),
-        );
+        const errors = result.items.filter((action) => {
+          const operation = Object.keys(action)[0];
+          return !Stacker.isSuccess(action[operation]);
+        });
         hasError = errors.length > 0;
 
         if (hasError) this.error(errors);
@@ -157,9 +168,9 @@ export default abstract class Stacker {
     console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
   }
 
-  private static isSuccess(item: Record<string, any>) {
-    const status = item?.status ?? 0;
-    const errorType = item?.error?.type;
+  private static isSuccess(action: Record<string, any>) {
+    const status = action?.status ?? 0;
+    const errorType = action?.error?.type;
 
     if (status >= 200 && status < 300) return true;
     if (status === 409 && errorType === 'version_conflict_engine_exception')
