@@ -97,8 +97,12 @@ export class TimestampStacker extends Stacker {
     startCursor: TimestampCursor,
     endCursor: TimestampCursor,
   ): Promise<EsData[]> {
-    const getBaseQuery = (column: string): string => {
-      return `
+    const rows = await (async (
+      startCursor: TimestampCursor,
+      endCursor: TimestampCursor,
+    ) => {
+      const getBaseQuery = (column: string): string => {
+        return `
         select 
           *, 
           unix_timestamp(${column}) as timestamp
@@ -109,19 +113,19 @@ export class TimestampStacker extends Stacker {
         order by ${column}, id
         limit ?
       `
-        .replace(/(^\s+)|(\s+$)/g, '')
-        .replace(/[\r\n]+\s*/g, ' ');
-    };
-    const baseQueryParams = [
-      startCursor.timestamp,
-      startCursor.id,
-      startCursor.timestamp,
-      endCursor.timestamp,
-      this.chunkLimit,
-    ];
+          .replace(/(^\s+)|(\s+$)/g, '')
+          .replace(/[\r\n]+\s*/g, ' ');
+      };
+      const baseQueryParams = [
+        startCursor.timestamp,
+        startCursor.id,
+        startCursor.timestamp,
+        endCursor.timestamp,
+        this.chunkLimit,
+      ];
 
-    const [rows] = await this.mysql.execute(
-      `
+      const [rows] = await this.mysql.execute(
+        `
             select
                 *
             from
@@ -131,49 +135,61 @@ export class TimestampStacker extends Stacker {
             order by timestamp, id
             limit ?
            `,
-      [
-        ...baseQueryParams, // createAt
-        ...baseQueryParams, // updateAt
-        ...baseQueryParams, // deleteAt
-        this.chunkLimit,
-      ],
-    );
+        [
+          ...baseQueryParams, // createAt
+          ...baseQueryParams, // updateAt
+          ...baseQueryParams, // deleteAt
+          this.chunkLimit,
+        ],
+      );
+      return rows;
+    })(startCursor, endCursor);
 
     return Object.values(rows).map((item) => {
-      item.createAt = item?.createAt
-        ? new Date(item.createAt).toISOString()
-        : null;
-      item.updateAt = item?.updateAt
-        ? new Date(item.updateAt).toISOString()
-        : null;
-      item.deleteAt = item?.deleteAt
-        ? new Date(item.deleteAt).toISOString()
-        : null;
+      item.createAt = TimestampStacker.timestampToIsoString(item.createAt);
+      item.updateAt = TimestampStacker.timestampToIsoString(item.updateAt);
+      item.deleteAt = TimestampStacker.timestampToIsoString(item.deleteAt);
 
       const version = parseFloat(item.timestamp);
-      if (item.deleteAt) {
-        return {
-          cursor: version,
-          type: 'DeleteDocument',
-          metadata: {
-            index: this.getIndexName(),
-            id: `id_${item.id}`,
-          },
-        } as DeleteDocument;
-      } else {
-        return {
-          cursor: version,
-          type: 'VersionedDocument',
-          metadata: {
-            index: this.getIndexName(),
-            id: `id_${item.id}`,
-            versionType: 'external_gte',
-            version: version,
-          },
-          source: item,
-        } as VersionedDocument;
-      }
+      return !item.deleteAt
+        ? this.getSyncDoc(version, item)
+        : this.getDeleteDoc(version, item);
     });
+  }
+
+  private static timestampToIsoString(timestamp: number) {
+    return timestamp ? new Date(timestamp).toISOString() : null;
+  }
+
+  private getSyncDoc(
+    version: number,
+    source: Record<string, any>,
+  ): VersionedDocument {
+    return {
+      cursor: version,
+      type: 'VersionedDocument',
+      metadata: {
+        index: this.getIndexName(),
+        id: `id_${source.id}`,
+        versionType: 'external_gte',
+        version: version,
+      },
+      source: source,
+    };
+  }
+
+  private getDeleteDoc(
+    version: number,
+    source: Record<string, any>,
+  ): DeleteDocument {
+    return {
+      cursor: version,
+      type: 'DeleteDocument',
+      metadata: {
+        index: this.getIndexName(),
+        id: `id_${source.id}`,
+      },
+    };
   }
 
   protected getLatestCursorByItems(items: EsData[]): TimestampCursor {
