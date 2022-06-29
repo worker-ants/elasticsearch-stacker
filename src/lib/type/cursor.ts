@@ -1,1 +1,1 @@
-export type Cursor = Map<string, number | bigint | string>;
+export type Cursor = Record<string, number | bigint | string>;

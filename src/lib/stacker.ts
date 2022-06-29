@@ -115,9 +115,23 @@ export default abstract class Stacker {
       refresh: 'wait_for',
     });
 
-    if (result?.errors) this.error(result);
+    let hasError = false;
+    if (result?.errors) {
+      hasError = true;
 
-    return !result.errors;
+      if (result?.items?.filter) {
+        const errors = result.items.filter(
+          (item) => !Stacker.isSuccess(item?.index),
+        );
+        hasError = errors.length > 0;
+
+        if (hasError) this.error(errors);
+      } else {
+        this.error(result);
+      }
+    }
+
+    return !hasError;
   }
 
   private async delay(delay: number) {
@@ -141,5 +155,16 @@ export default abstract class Stacker {
   public debug(message: any, toJson = true) {
     const now = new Date().toISOString();
     console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
+  }
+
+  private static isSuccess(item: Record<string, any>) {
+    const status = item?.status ?? 0;
+    const errorType = item?.error?.type;
+
+    if (status >= 200 && status < 300) return true;
+    if (status === 409 && errorType === 'version_conflict_engine_exception')
+      return true;
+
+    return false;
   }
 }
