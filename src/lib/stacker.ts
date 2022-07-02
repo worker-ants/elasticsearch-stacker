@@ -120,25 +120,27 @@ export default abstract class Stacker {
       }
     });
 
-    const result = await this.esClient.bulk({
+    const bulkResponse = await this.esClient.bulk({
       body: bulk,
       refresh: 'wait_for',
     });
 
     let hasError = false;
-    if (result?.errors) {
+    if (bulkResponse?.errors) {
       hasError = true;
-
-      if (result?.items?.filter) {
-        const errors = result.items.filter((action) => {
+      console.log(bulkResponse?.items);
+      if (bulkResponse?.items?.filter) {
+        const errors = bulkResponse.items.filter((action) => {
           const operation = Object.keys(action)[0];
-          return !Stacker.isSuccess(action[operation]);
+          return (
+            action[operation]?.errors && !Stacker.isIgnore(action[operation])
+          );
         });
         hasError = errors.length > 0;
 
         if (hasError) this.error(errors);
       } else {
-        this.error(result);
+        this.error(bulkResponse);
       }
     }
 
@@ -168,14 +170,11 @@ export default abstract class Stacker {
     console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
   }
 
-  private static isSuccess(action: Record<string, any>) {
+  private static isIgnore(action: Record<string, any>): true | void {
     const status = action?.status ?? 0;
     const errorType = action?.error?.type;
 
-    if (status >= 200 && status < 300) return true;
     if (status === 409 && errorType === 'version_conflict_engine_exception')
       return true;
-
-    return false;
   }
 }
