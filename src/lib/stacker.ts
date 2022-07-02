@@ -3,14 +3,16 @@ import { Config } from './interface/config';
 import { ChunkInfo } from './interface/chunkInfo';
 import { EsData } from './interface/esItem';
 import { Cursor } from './type/cursor';
+import { BulkType } from './enum/bulkType';
+import { EsErrors } from './enum/esErrors';
 
 export default abstract class Stacker {
-  private readonly esClient: Client;
+  private readonly elasticSearchClient: Required<Client>;
   private readonly config: Config;
   private cursor: Cursor;
 
-  constructor(esClient: Client, config: Config) {
-    this.esClient = esClient;
+  protected constructor(config: Config) {
+    this.elasticSearchClient = config.elasticSearchClient;
     this.config = config;
   }
 
@@ -29,10 +31,6 @@ export default abstract class Stacker {
       }
       await this.delay(this.config.chunkDelay);
     }
-  }
-
-  protected getIndexName(): string {
-    return this.config.index;
   }
 
   protected async execChunk(): Promise<ChunkInfo> {
@@ -67,7 +65,7 @@ export default abstract class Stacker {
   protected abstract getCursorCache(): Promise<Cursor>;
   protected abstract setCursorCache(cursor: Cursor): Promise<boolean>;
 
-  private getCursor() {
+  protected getCursor() {
     return this.cursor;
   }
 
@@ -98,7 +96,7 @@ export default abstract class Stacker {
     const bulk = [];
     items.forEach((item) => {
       switch (item.type) {
-        case 'VersionedDocument':
+        case BulkType.VersionedDocument:
           bulk.push({
             index: {
               _index: item.metadata.index,
@@ -109,7 +107,7 @@ export default abstract class Stacker {
           });
           bulk.push(item.source);
           break;
-        case 'DeleteDocument':
+        case BulkType.DeleteDocument:
           bulk.push({
             delete: {
               _index: item.metadata.index,
@@ -120,15 +118,15 @@ export default abstract class Stacker {
       }
     });
 
-    const bulkResponse = await this.esClient.bulk({
+    const bulkResponse = await this.elasticSearchClient.bulk({
       body: bulk,
       refresh: 'wait_for',
     });
 
-    let hasError = false;
+    let isFail = false;
     if (bulkResponse?.errors) {
-      hasError = true;
-      console.log(bulkResponse?.items);
+      isFail = true;
+
       if (bulkResponse?.items?.filter) {
         const errors = bulkResponse.items.filter((action) => {
           const operation = Object.keys(action)[0];
@@ -136,15 +134,15 @@ export default abstract class Stacker {
             action[operation]?.errors && !Stacker.isIgnore(action[operation])
           );
         });
-        hasError = errors.length > 0;
+        isFail = errors.length > 0;
 
-        if (hasError) this.error(errors);
+        if (isFail) this.error(errors);
       } else {
         this.error(bulkResponse);
       }
     }
 
-    return !hasError;
+    return !isFail;
   }
 
   private async delay(delay: number) {
@@ -170,11 +168,16 @@ export default abstract class Stacker {
     console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
   }
 
-  private static isIgnore(action: Record<string, any>): true | void {
-    const status = action?.status ?? 0;
+  private static isIgnore(action: Record<string, any>): boolean {
+    //const status = action?.status ?? 0;
     const errorType = action?.error?.type;
 
-    if (status === 409 && errorType === 'version_conflict_engine_exception')
-      return true;
+    switch (errorType) {
+      case EsErrors.VERSION_CONFLICT_ENGINE_EXCEPTION: // status: 409
+      case EsErrors.INDEX_NOT_FOUND_EXCEPTION: // status: 404
+        return true;
+      default:
+        return false;
+    }
   }
 }

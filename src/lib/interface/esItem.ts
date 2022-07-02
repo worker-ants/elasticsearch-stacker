@@ -1,9 +1,11 @@
+import { BulkType } from '../enum/bulkType';
+
 export declare type EsData = VersionedDocument | DeleteDocument;
 export declare type VersionType = 'external' | 'external_gte';
 
 export interface VersionedDocument {
   cursor: Required<number | bigint>;
-  type: Required<'VersionedDocument'>;
+  type: Required<BulkType.VersionedDocument>;
   metadata: {
     index: Required<string>; // index
     id: Required<string | number>; // document id
@@ -15,7 +17,7 @@ export interface VersionedDocument {
 
 export interface DeleteDocument {
   cursor: Required<number | bigint>;
-  type: Required<'DeleteDocument'>;
+  type: Required<BulkType.DeleteDocument>;
   metadata: {
     index: Required<string>; // index
     id: Required<string | number>; // document id

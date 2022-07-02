@@ -8,8 +8,8 @@ import {
   VersionedDocument,
 } from '../../lib/interface/esItem';
 import { Cursor } from '../../lib/type/cursor';
-import Client from '@elastic/elasticsearch/lib/client';
 import { Config } from '../../lib/interface/config';
+import { BulkType } from '../../lib/enum/bulkType';
 
 interface TimestampCursor extends Cursor {
   timestamp: number;
@@ -19,18 +19,21 @@ interface TimestampCursor extends Cursor {
 interface TimestampConfig extends Config {
   agentName: string;
   chunkLimit: number;
+  index: string;
 }
 
 export class TimestampStacker extends Stacker {
   private readonly agentName: string;
   private readonly chunkLimit: number;
+  private readonly indexName: string;
   private mysql: Connection;
 
-  public constructor(esClient: Client, config: TimestampConfig) {
-    super(esClient, config);
+  public constructor(config: TimestampConfig) {
+    super(config);
 
     this.agentName = config?.agentName ?? 'timestamp-agent';
     this.chunkLimit = config?.chunkLimit ?? 1000;
+    this.indexName = config.index;
   }
 
   public async connectMysql(mysqlConfig: MysqlConfig) {
@@ -167,7 +170,7 @@ export class TimestampStacker extends Stacker {
   ): VersionedDocument {
     return {
       cursor: version,
-      type: 'VersionedDocument',
+      type: BulkType.VersionedDocument,
       metadata: {
         index: this.getIndexName(),
         id: `id_${source.id}`,
@@ -184,12 +187,16 @@ export class TimestampStacker extends Stacker {
   ): DeleteDocument {
     return {
       cursor: version,
-      type: 'DeleteDocument',
+      type: BulkType.DeleteDocument,
       metadata: {
         index: this.getIndexName(),
         id: `id_${source.id}`,
       },
     };
+  }
+
+  private getIndexName(): string {
+    return this.indexName;
   }
 
   protected getLatestCursorByItems(items: EsData[]): TimestampCursor {

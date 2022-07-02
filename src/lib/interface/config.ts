@@ -1,7 +1,6 @@
-import { DataType } from '../enum/dataType';
+import Client from '@elastic/elasticsearch/lib/client';
 
 export interface Config {
-  chunkDelay: number;
-  index: string;
-  dataType: DataType;
+  elasticSearchClient: Required<Client>;
+  chunkDelay: Required<number>;
 }
