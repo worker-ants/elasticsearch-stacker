@@ -10,7 +10,8 @@
     "dummy:append": "node ./dist/example/dummyAppend.js",
     "dummy:update": "node ./dist/example/dummyUpdate.js",
     "dummy:delete": "node ./dist/example/dummyDelete.js",
-    "start:timestamp": "node ./dist/example/exampleTimestamp.js"
+    "start:timestamp": "node ./dist/example/exampleTimestamp.js",
+    "start:increment": "node ./dist/example/exampleIncrementKey.js"
   },
   "author": "worker-ants",
   "license": "MIT",

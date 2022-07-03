@@ -2,7 +2,7 @@ import { Client } from '@elastic/elasticsearch';
 import 'dotenv/config';
 import { esConfig } from './config/es';
 import { mysqlConfig } from './config/mysql';
-import { TimestampStacker } from './module/timestampStacker';
+import { IncrementKeyStacker } from './module/incrementKey';
 import { Events } from '../lib/enum/events';
 import { ChunkInfo } from '../lib/interface/chunkInfo';
 import { Util } from './module/util';
@@ -23,7 +23,7 @@ const config = {
   console.log('start');
 
   try {
-    const stacker = new TimestampStacker(config);
+    const stacker = new IncrementKeyStacker(config);
     await stacker.connectMysql(mysqlConfig);
     await stacker.setCacheInitialize();
 

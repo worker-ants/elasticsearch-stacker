@@ -9,6 +9,7 @@ import {
 import { Cursor } from '../../lib/type/cursor';
 import { Config } from '../../lib/interface/config';
 import { BulkType } from '../../lib/enum/bulkType';
+import { Util } from './util';
 
 interface TimestampCursor extends Cursor {
   timestamp: number;
@@ -16,7 +17,6 @@ interface TimestampCursor extends Cursor {
 }
 
 interface TimestampConfig extends Config {
-  agentName: string;
   chunkLimit: number;
   index: string;
 }
@@ -30,7 +30,7 @@ export class TimestampStacker extends Stacker {
   public constructor(config: TimestampConfig) {
     super(config);
 
-    this.agentName = config?.agentName ?? 'timestamp-agent';
+    this.agentName = 'timestamp-agent';
     this.chunkLimit = config?.chunkLimit ?? 1000;
     this.indexName = config.index;
   }
@@ -148,19 +148,15 @@ export class TimestampStacker extends Stacker {
     })(startCursor, endCursor);
 
     return Object.values(rows).map((item) => {
-      item.createAt = TimestampStacker.timestampToIsoString(item.createAt);
-      item.updateAt = TimestampStacker.timestampToIsoString(item.updateAt);
-      item.deleteAt = TimestampStacker.timestampToIsoString(item.deleteAt);
+      item.createAt = Util.timestampToIsoString(item.createAt);
+      item.updateAt = Util.timestampToIsoString(item.updateAt);
+      item.deleteAt = Util.timestampToIsoString(item.deleteAt);
 
       const version = parseFloat(item.timestamp);
       return !item.deleteAt
         ? this.getSyncDoc(version, item)
         : this.getDeleteDoc(version, item);
     });
-  }
-
-  private static timestampToIsoString(timestamp: number) {
-    return timestamp ? new Date(timestamp).toISOString() : null;
   }
 
   private getSyncDoc(
