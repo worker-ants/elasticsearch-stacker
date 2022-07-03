@@ -5,7 +5,7 @@ export declare type VersionType = 'external' | 'external_gte';
 
 export interface VersionedDocument {
   cursor: Required<number | bigint>;
-  type: Required<BulkType.VersionedDocument>;
+  type: Required<BulkType.VERSIONED_DOCUMENT>;
   metadata: {
     index: Required<string>; // index
     id: Required<string | number>; // document id
@@ -17,7 +17,7 @@ export interface VersionedDocument {
 
 export interface DeleteDocument {
   cursor: Required<number | bigint>;
-  type: Required<BulkType.DeleteDocument>;
+  type: Required<BulkType.DELETE_DOCUMENT>;
   metadata: {
     index: Required<string>; // index
     id: Required<string | number>; // document id

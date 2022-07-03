@@ -1,4 +1,4 @@
 export enum BulkType {
-  VersionedDocument,
-  DeleteDocument,
+  VERSIONED_DOCUMENT = 'VERSIONED_DOCUMENT',
+  DELETE_DOCUMENT = 'DELETE_DOCUMENT',
 }

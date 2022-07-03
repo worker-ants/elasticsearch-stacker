@@ -170,7 +170,7 @@ export class TimestampStacker extends Stacker {
   ): VersionedDocument {
     return {
       cursor: version,
-      type: BulkType.VersionedDocument,
+      type: BulkType.VERSIONED_DOCUMENT,
       metadata: {
         index: this.getIndexName(),
         id: `id_${source.id}`,
@@ -187,7 +187,7 @@ export class TimestampStacker extends Stacker {
   ): DeleteDocument {
     return {
       cursor: version,
-      type: BulkType.DeleteDocument,
+      type: BulkType.DELETE_DOCUMENT,
       metadata: {
         index: this.getIndexName(),
         id: `id_${source.id}`,

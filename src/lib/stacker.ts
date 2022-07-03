@@ -5,15 +5,19 @@ import { EsData } from './interface/esItem';
 import { Cursor } from './type/cursor';
 import { BulkType } from './enum/bulkType';
 import { EsErrors } from './enum/esErrors';
+import { Events } from './enum/events';
+import { EventEmitter } from 'events';
 
 export default abstract class Stacker {
   private readonly elasticSearchClient: Required<Client>;
   private readonly config: Config;
+  private readonly eventEmitter;
   private cursor: Cursor;
 
   protected constructor(config: Config) {
     this.elasticSearchClient = config.elasticSearchClient;
     this.config = config;
+    this.eventEmitter = new EventEmitter();
   }
 
   public async main() {
@@ -21,33 +25,32 @@ export default abstract class Stacker {
 
     while (Infinity) {
       try {
-        const result = await this.execChunk();
-        if (result !== null) this.log(JSON.stringify(result.cursor));
+        const chunkInfo = await this.execChunk();
+        if (chunkInfo) this.emit(Events.EXECUTED_CHUNK, chunkInfo);
       } catch (e) {
-        this.error({
-          cursor: this.getCursor(),
-          exception: e,
-        });
+        this.emit(Events.UNCAUGHT_ERROR, e);
+        console.error(e);
       }
       await this.delay(this.config.chunkDelay);
     }
+  }
+
+  public on(event: Events, arg: any) {
+    this.eventEmitter.on(event, arg);
   }
 
   protected async execChunk(): Promise<ChunkInfo> {
     const currentCursor = this.getCursor();
     const latestCursor = await this.getLatestCursor();
 
-    if (JSON.stringify(currentCursor) === JSON.stringify(latestCursor)) {
-      this.debug('cursor is not changed');
-      return null;
-    }
+    if (JSON.stringify(currentCursor) === JSON.stringify(latestCursor))
+      return this.emit(Events.SKIPPED_CHUNK, 'cursor is not changed');
 
     const items = await this.getItems(currentCursor, latestCursor);
 
-    if (!items.length) {
-      this.debug('not found items');
-      return null;
-    }
+    if (!items.length)
+      return this.emit(Events.SKIPPED_CHUNK, 'not found items');
+
     const latestCursorByItems = this.getLatestCursorByItems(items);
 
     if (await this.syncItems(items)) await this.setCursor(latestCursorByItems);
@@ -96,7 +99,7 @@ export default abstract class Stacker {
     const bulk = [];
     items.forEach((item) => {
       switch (item.type) {
-        case BulkType.VersionedDocument:
+        case BulkType.VERSIONED_DOCUMENT:
           bulk.push({
             index: {
               _index: item.metadata.index,
@@ -107,7 +110,7 @@ export default abstract class Stacker {
           });
           bulk.push(item.source);
           break;
-        case BulkType.DeleteDocument:
+        case BulkType.DELETE_DOCUMENT:
           bulk.push({
             delete: {
               _index: item.metadata.index,
@@ -136,9 +139,12 @@ export default abstract class Stacker {
         });
         isFail = errors.length > 0;
 
-        if (isFail) this.error(errors);
+        this.emit(
+          isFail ? Events.BULK_ERROR : Events.BULK_ERROR_IGNORED,
+          bulkResponse,
+        );
       } else {
-        this.error(bulkResponse);
+        this.emit(Events.BULK_ERROR, bulkResponse);
       }
     }
 
@@ -153,21 +159,6 @@ export default abstract class Stacker {
     });
   }
 
-  public log(message: any, toJson = true) {
-    const now = new Date().toISOString();
-    console.log(`[${now}]`, toJson ? JSON.stringify(message) : message);
-  }
-
-  public error(e: any, toJson = true) {
-    const now = new Date().toISOString();
-    console.error(`[${now}]`, toJson ? JSON.stringify(e) : e);
-  }
-
-  public debug(message: any, toJson = true) {
-    const now = new Date().toISOString();
-    console.debug(`[${now}]`, toJson ? JSON.stringify(message) : message);
-  }
-
   private static isIgnore(action: Record<string, any>): boolean {
     //const status = action?.status ?? 0;
     const errorType = action?.error?.type;
@@ -179,5 +170,10 @@ export default abstract class Stacker {
       default:
         return false;
     }
+  }
+
+  private emit(event: Events, arg: any): null {
+    this.eventEmitter.emit(event, arg);
+    return null;
   }
 }
