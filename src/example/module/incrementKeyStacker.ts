@@ -1,10 +1,10 @@
 import { createConnection, Connection } from 'mysql2/promise';
-import Stacker from '../../lib/stacker';
+import Stacker from '../../stacker';
 import { MysqlConfig } from '../config/mysql';
-import { VersionedDocument } from '../../lib/interface/esItem';
-import { Cursor } from '../../lib/type/cursor';
-import { Config } from '../../lib/interface/config';
-import { BulkType } from '../../lib/enum/bulkType';
+import { VersionedDocument } from '../../interface/esItem';
+import { Cursor } from '../../type/cursor';
+import { Config } from '../../interface/config';
+import { BulkType } from '../../enum/bulkType';
 import { Util } from './util';
 
 interface IncrementKeyCursor extends Cursor {

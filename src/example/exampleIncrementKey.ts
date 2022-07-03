@@ -3,8 +3,8 @@ import 'dotenv/config';
 import { esConfig } from './config/es';
 import { mysqlConfig } from './config/mysql';
 import { IncrementKeyStacker } from './module/incrementKeyStacker';
-import { Events } from '../lib/enum/events';
-import { ChunkInfo } from '../lib/interface/chunkInfo';
+import { Events } from '../enum/events';
+import { ChunkInfo } from '../interface/chunkInfo';
 import { Util } from './module/util';
 
 const config = {
