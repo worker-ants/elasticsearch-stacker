@@ -9,7 +9,7 @@ import { Events } from './enum/events';
 import { EventEmitter } from 'events';
 
 export default abstract class Stacker {
-  private readonly elasticSearchClient: Required<Client>;
+  private readonly elasticSearchClient: Client;
   private readonly config: Config;
   private readonly eventEmitter;
   private cursor: Cursor;
