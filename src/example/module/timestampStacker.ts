@@ -1,6 +1,5 @@
 import { createConnection, Connection } from 'mysql2/promise';
 import Stacker from '../../lib/stacker';
-import 'dotenv/config';
 import { MysqlConfig } from '../config/mysql';
 import {
   DeleteDocument,
