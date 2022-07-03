@@ -16,20 +16,20 @@
   "author": "worker-ants",
   "license": "MIT",
   "devDependencies": {
+    "@elastic/elasticsearch": "^8.2.1",
     "@types/node": "^16.4.13",
     "@typescript-eslint/eslint-plugin": "^4.29.0",
     "@typescript-eslint/parser": "^4.29.0",
+    "dotenv": "^16.0.1",
     "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^3.4.0",
+    "mysql2": "^2.3.3",
     "prettier": "^2.3.2",
     "tsconfig-paths": "^3.10.1",
     "typescript": "^4.3.5"
   },
   "dependencies": {
-    "@elastic/elasticsearch": "^8.2.1",
-    "dotenv": "^10.0.0",
-    "mysql2": "^2.3.3",
     "rimraf": "^3.0.2"
   }
 }
