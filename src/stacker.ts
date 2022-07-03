@@ -9,9 +9,9 @@ import { Events } from './enum/events';
 import { EventEmitter } from 'events';
 
 export default abstract class Stacker {
-  private readonly elasticSearchClient: Client;
-  private readonly config: Config;
-  private readonly eventEmitter;
+  protected readonly elasticSearchClient: Client;
+  protected readonly config: Config;
+  protected readonly eventEmitter: EventEmitter;
   private cursor: Cursor;
 
   protected constructor(config: Config) {
@@ -35,8 +35,8 @@ export default abstract class Stacker {
     }
   }
 
-  public on(event: Events, arg: any) {
-    this.eventEmitter.on(event, arg);
+  public on(eventName: string | symbol, listener: (...args: any[]) => void) {
+    return this.eventEmitter.on(eventName, listener);
   }
 
   protected async execChunk(): Promise<ChunkInfo> {
@@ -95,8 +95,9 @@ export default abstract class Stacker {
 
   protected abstract getLatestCursorByItems(items: EsData[]): Cursor;
 
-  private async syncItems(items: EsData[]): Promise<boolean> {
+  protected async syncItems(items: EsData[]): Promise<boolean> {
     const bulk = [];
+
     items.forEach((item) => {
       switch (item.type) {
         case BulkType.VERSIONED_DOCUMENT:

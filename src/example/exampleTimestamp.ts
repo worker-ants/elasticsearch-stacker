@@ -22,22 +22,29 @@ const config = {
 (async () => {
   console.log('start');
 
+  const hideSkipLog =
+    (process.env.HIDE_SKIP_LOG?.toLowerCase() ?? 'false') === 'true';
+  const hideIgnoreLog =
+    (process.env.HIDE_IGNORE_LOG?.toLowerCase() ?? 'false') === 'true';
+
   try {
     const stacker = new TimestampStacker(config);
     await stacker.connectMysql(mysqlConfig);
     await stacker.setCacheInitialize();
 
     stacker.on(Events.EXECUTED_CHUNK, (chunkInfo: ChunkInfo) => {
-      console.log(`[${Util.now()}]`, chunkInfo);
+      console.log(
+        `[${Util.now()}] ${JSON.stringify({ ...chunkInfo, items: undefined })}`,
+      );
     });
     stacker.on(Events.SKIPPED_CHUNK, (message: string) => {
-      console.log(`[${Util.now()}] ${message}`);
+      if (!hideSkipLog) console.log(`[${Util.now()}] ${message}`);
     });
     stacker.on(Events.BULK_ERROR, (bulkResponse: any) => {
       console.log(`[${Util.now()}]`, bulkResponse);
     });
     stacker.on(Events.BULK_ERROR_IGNORED, (bulkResponse: any) => {
-      console.log(`[${Util.now()}]`, bulkResponse);
+      if (!hideIgnoreLog) console.log(`[${Util.now()}]`, bulkResponse);
     });
     stacker.on(Events.UNCAUGHT_ERROR, (error: any) => {
       console.log(`[${Util.now()}]`, error);

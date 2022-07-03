@@ -147,16 +147,35 @@ export class TimestampStacker extends Stacker {
       return rows;
     })(startCursor, endCursor);
 
-    return Object.values(rows).map((item) => {
-      item.createAt = Util.timestampToIsoString(item.createAt);
-      item.updateAt = Util.timestampToIsoString(item.updateAt);
-      item.deleteAt = Util.timestampToIsoString(item.deleteAt);
+    return Object.values(rows)
+      .map((item) => {
+        item.createAt = Util.timestampToIsoString(item.createAt);
+        item.updateAt = Util.timestampToIsoString(item.updateAt);
+        item.deleteAt = Util.timestampToIsoString(item.deleteAt);
 
-      const version = parseFloat(item.timestamp);
-      return !item.deleteAt
-        ? this.getSyncDoc(version, item)
-        : this.getDeleteDoc(version, item);
+        const version = parseFloat(item.timestamp);
+        return !item.deleteAt
+          ? this.getSyncDoc(version, item)
+          : this.getDeleteDoc(version, item);
+      })
+      .filter((value) => value !== null);
+  }
+
+  protected async syncItems(items: EsData[]): Promise<boolean> {
+    const deletedIds = [];
+    items.forEach((item) => {
+      if (item.type === BulkType.DELETE_DOCUMENT) {
+        const id = parseInt(String(item.metadata.id).replace(/^id_/, ''), 10);
+        deletedIds.push(id);
+      }
     });
+
+    if (deletedIds) {
+      await this.chainUpdateExample(deletedIds);
+      await this.chainDeleteExample(deletedIds);
+    }
+
+    return super.syncItems(items);
   }
 
   private getSyncDoc(
@@ -188,6 +207,53 @@ export class TimestampStacker extends Stacker {
         id: `id_${source.id}`,
       },
     };
+  }
+
+  private async chainUpdateExample(deletedIds: number[]) {
+    if (!deletedIds.length) return null;
+
+    console.log(`chain to updateByQuery: ${deletedIds.length} items`);
+    return await this.elasticSearchClient.updateByQuery({
+      index: this.getIndexName(),
+      body: {
+        query: {
+          bool: {
+            filter: [
+              {
+                ids: {
+                  values: deletedIds.map((id) => `id_${id}`),
+                },
+              },
+            ],
+          },
+        },
+        script: "ctx._source.tag = 'DELETED'",
+      },
+      refresh: true,
+    });
+  }
+
+  private async chainDeleteExample(deletedIds: number[]) {
+    if (!deletedIds.length) return null;
+
+    console.log(`chain to deleteByQuery: ${deletedIds.length} items`);
+    return await this.elasticSearchClient.deleteByQuery({
+      index: this.getIndexName(),
+      body: {
+        query: {
+          bool: {
+            filter: [
+              {
+                ids: {
+                  values: deletedIds.map((id) => `id_${id}`),
+                },
+              },
+            ],
+          },
+        },
+      },
+      refresh: true,
+    });
   }
 
   private getIndexName(): string {
