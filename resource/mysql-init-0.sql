@@ -9,9 +9,3 @@ create table dummy (
    key updateAt (updateAt),
    key deleteAt (deleteAt)
 ) charset utf8mb4 collate utf8mb4_bin comment 'dummy data';
-
-create table cache (
-   agent char(20) not null,
-   position json not null,
-   primary key agent (agent)
-) charset utf8mb4 collate utf8mb4_bin comment 'cache';

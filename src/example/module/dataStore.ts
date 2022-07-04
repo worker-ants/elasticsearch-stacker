@@ -1,7 +1,7 @@
 import { createPool, Pool } from 'mysql2/promise';
 import { MysqlConfig } from '../config/mysql';
 
-export class DataSource {
+export class DataStore {
   private readonly pool: Pool;
 
   constructor(config: MysqlConfig) {

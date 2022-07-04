@@ -1,16 +1,18 @@
-import { Pool } from 'mysql2/promise';
 import Stacker from '../../stacker';
-import { MysqlConfig } from '../config/mysql';
+import { Pool } from 'mysql2/promise';
 import {
-  DeleteDocument,
   EsData,
   VersionedDocument,
+  DeleteDocument,
 } from '../../interface/esItem';
 import { Cursor } from '../../type/cursor';
 import { Config } from '../../interface/config';
 import { BulkType } from '../../enum/bulkType';
 import { Util } from './util';
-import { DataSource } from './dataSource';
+import { DataStore } from './dataStore';
+import { CacheStore } from './cacheStore';
+import { MysqlConfig } from '../config/mysql';
+import { RedisConfig } from '../config/redis';
 
 interface TimestampCursor extends Cursor {
   timestamp: number;
@@ -27,6 +29,7 @@ export class TimestampStacker extends Stacker {
   private readonly chunkLimit: number;
   private readonly indexName: string;
   private dataSource: Pool;
+  private cacheStore: CacheStore;
 
   public constructor(config: TimestampConfig) {
     super(config);
@@ -37,45 +40,29 @@ export class TimestampStacker extends Stacker {
   }
 
   public async connectMysql(mysqlConfig: MysqlConfig) {
-    this.dataSource = new DataSource({
+    this.dataSource = new DataStore({
       ...mysqlConfig,
       namedPlaceholders: true,
     }).getPool();
   }
 
-  public async setCacheInitialize() {
-    await this.dataSource.execute(
-      `insert into cache (agent, position) values (:agentId, '{}')
-        on duplicate key update agent = agent;`,
-      {
-        agentId: this.getAgentId(),
-      },
-    );
+  public async connectRedis(redisConfig: RedisConfig) {
+    this.cacheStore = new CacheStore(redisConfig);
+    await this.cacheStore.connect();
   }
 
   protected async getCursorCache(): Promise<TimestampCursor> {
-    const [rows] = await this.dataSource.execute(
-      `select position from cache where agent = :agentId`,
-      {
-        agentId: this.getAgentId(),
-      },
+    const cache = JSON.parse(
+      (await this.cacheStore.get(this.getAgentId())) || '{}',
     );
-    const position = rows?.[0].position ?? {};
     return {
-      timestamp: position?.timestamp ?? 0,
-      id: position?.id ?? 0,
+      timestamp: cache?.timestamp ?? 0,
+      id: cache?.id ?? 0,
     } as TimestampCursor;
   }
 
   protected async setCursorCache(cursor: TimestampCursor) {
-    const result = await this.dataSource.execute(
-      `update cache set position = :position where agent = :agentId`,
-      {
-        position: JSON.stringify(cursor),
-        agentId: this.getAgentId(),
-      },
-    );
-    return !!result;
+    return await this.cacheStore.set(this.getAgentId(), JSON.stringify(cursor));
   }
 
   protected async getLatestCursor(): Promise<TimestampCursor> {

@@ -23,10 +23,6 @@ export class DummyStore {
     await this.mysql.execute(`truncate dummy`);
   }
 
-  public async clearCache() {
-    await this.mysql.execute(`truncate cache`);
-  }
-
   public async appendDummyData(total: number) {
     const chunk = 1000;
     const base = total / chunk;

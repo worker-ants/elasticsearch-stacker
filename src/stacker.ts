@@ -21,7 +21,10 @@ export default abstract class Stacker {
   }
 
   public async main() {
-    await this.setCursor(await this.getCursorCache(), false);
+    const latestCursor = await this.getCursorCache();
+    await this.setCursor(latestCursor, false);
+
+    this.emit(Events.STARTUP, `latest Cursor: ${JSON.stringify(latestCursor)}`);
 
     while (Infinity) {
       try {

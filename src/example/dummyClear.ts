@@ -11,9 +11,6 @@ import { DummyStore } from './module/dummyStore';
     console.log(`truncate dummy data`);
     await dummyStore.clearDummy();
 
-    console.log(`truncate cache data`);
-    await dummyStore.clearCache();
-
     await dummyStore.disconnect();
     console.log(`complete`);
   } catch (e) {

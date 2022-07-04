@@ -1,9 +1,6 @@
 # elastic search stacker
 custom data sync to elastic search
 
-## @todo improve example
-- move position cache to redis
-
 ## flow
 ![flow-diagram](/doc/flow-diagram.jpg)
 
