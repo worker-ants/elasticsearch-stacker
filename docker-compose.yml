@@ -12,6 +12,8 @@ services:
       - xpack.security.enabled=false
       - xpack.license.self_generated.type=basic
       - TZ=asia/seoul
+    volumes:
+      - es-volume:/usr/share/elasticsearch/data
   kibana:
     depends_on:
       - es
@@ -31,6 +33,21 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
       TZ: "asia/seoul"
     volumes:
       - ./resource/mysql-init-0.sql:/docker-entrypoint-initdb.d/mysql-init-0.sql
+  redis:
+    image: redis:7.0.2
+    ports:
+      - ${REDIS_PORT}:6379
+    environment:
+      TZ: "asia/seoul"
+    volumes:
+      - redis-volume:/data
+volumes:
+  es-volume:
+    driver: local
+  redis-volume:
+    driver: local
