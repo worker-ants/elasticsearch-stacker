@@ -11,6 +11,7 @@ export interface MysqlConfig {
   charset: string;
   connectionLimit: number;
   queueLimit: number;
+  namedPlaceholders: boolean;
 }
 export const mysqlConfig: MysqlConfig = {
   host: process.env?.MYSQL_HOST,
@@ -22,4 +23,5 @@ export const mysqlConfig: MysqlConfig = {
   charset: process.env?.MYSQL_CHARSET ?? 'utf8mb4',
   connectionLimit: parseInt(process.env?.CONNECTION_LIMIT || '10', 10),
   queueLimit: parseInt(process.env?.QUEUE_LIMIT || '0', 10),
+  namedPlaceholders: false,
 };

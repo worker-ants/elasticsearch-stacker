@@ -37,21 +37,28 @@ export class TimestampStacker extends Stacker {
   }
 
   public async connectMysql(mysqlConfig: MysqlConfig) {
-    this.dataSource = new DataSource(mysqlConfig).getPool();
+    this.dataSource = new DataSource({
+      ...mysqlConfig,
+      namedPlaceholders: true,
+    }).getPool();
   }
 
   public async setCacheInitialize() {
     await this.dataSource.execute(
-      `insert into cache (agent, position) values (?, '{}')
+      `insert into cache (agent, position) values (:agentId, '{}')
         on duplicate key update agent = agent;`,
-      [this.getAgentId()],
+      {
+        agentId: this.getAgentId(),
+      },
     );
   }
 
   protected async getCursorCache(): Promise<TimestampCursor> {
     const [rows] = await this.dataSource.execute(
-      `select position from cache where agent = ?`,
-      [this.getAgentId()],
+      `select position from cache where agent = :agentId`,
+      {
+        agentId: this.getAgentId(),
+      },
     );
     const position = rows?.[0].position ?? {};
     return {
@@ -62,8 +69,11 @@ export class TimestampStacker extends Stacker {
 
   protected async setCursorCache(cursor: TimestampCursor) {
     const result = await this.dataSource.execute(
-      `update cache set position = ? where agent = ?`,
-      [JSON.stringify(cursor), this.getAgentId()],
+      `update cache set position = :position where agent = :agentId`,
+      {
+        position: JSON.stringify(cursor),
+        agentId: this.getAgentId(),
+      },
     );
     return !!result;
   }
@@ -97,46 +107,53 @@ export class TimestampStacker extends Stacker {
       startCursor: TimestampCursor,
       endCursor: TimestampCursor,
     ) => {
-      const getBaseQuery = (column: string): string => {
-        return `
-        select 
-          *, 
-          unix_timestamp(${column}) as timestamp
-        from dummy
-        where
-          (${column} = from_unixtime(?) and id > ?)
-          or (${column} > from_unixtime(?) and ${column} <= from_unixtime(?))
-        order by ${column}, id
-        limit ?
-      `
-          .replace(/(^\s+)|(\s+$)/g, '')
-          .replace(/[\r\n]+\s*/g, ' ');
-      };
-      const baseQueryParams = [
-        startCursor.timestamp,
-        startCursor.id,
-        startCursor.timestamp,
-        endCursor.timestamp,
-        this.chunkLimit,
-      ];
-
       const [rows] = await this.dataSource.execute(
         `
             select
                 *
             from
-              (${getBaseQuery('createAt')}) as created
-              union all (${getBaseQuery('updateAt')})
-              union all (${getBaseQuery('deleteAt')})
+              (
+                  select
+                      *,
+                      unix_timestamp(createAt) as timestamp
+                  from dummy
+                  where
+                      (createAt = from_unixtime(:startCursor) and id > :subCursor)
+                     or (createAt > from_unixtime(:startCursor) and createAt <= from_unixtime(:endCursor))
+                  order by createAt, id
+                  limit :chunkLimit
+              ) as created
+              union all (
+                select
+                    *,
+                    unix_timestamp(updateAt) as timestamp
+                from dummy
+                where
+                    (updateAt = from_unixtime(:startCursor) and id > :subCursor)
+                   or (updateAt > from_unixtime(:startCursor) and updateAt <= from_unixtime(:endCursor))
+                order by updateAt, id
+                limit :chunkLimit
+            )
+              union all (
+                select
+                    *,
+                    unix_timestamp(deleteAt) as timestamp
+                from dummy
+                where
+                    (deleteAt = from_unixtime(:startCursor) and id > :subCursor)
+                   or (deleteAt > from_unixtime(:startCursor) and deleteAt <= from_unixtime(:endCursor))
+                order by deleteAt, id
+                limit :chunkLimit
+            )
             order by timestamp, id
-            limit ?
+            limit :chunkLimit
            `,
-        [
-          ...baseQueryParams, // createAt
-          ...baseQueryParams, // updateAt
-          ...baseQueryParams, // deleteAt
-          this.chunkLimit,
-        ],
+        {
+          startCursor: startCursor.timestamp,
+          endCursor: endCursor.timestamp,
+          subCursor: startCursor.id,
+          chunkLimit: this.chunkLimit,
+        },
       );
       return rows;
     })(startCursor, endCursor);

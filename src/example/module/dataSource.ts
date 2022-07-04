@@ -5,22 +5,9 @@ export class DataSource {
   private readonly pool: Pool;
 
   constructor(config: MysqlConfig) {
-    this.pool = createPool({
-      ...config,
-      queryFormat: function (query: string, values: any) {
-        if (!values) return query;
-        return query.replace(
-          /:(\w+)/g,
-          function (txt, key) {
-            if (values.hasOwnProperty(key)) {
-              return this.escape(values[key]);
-            }
-            return txt;
-          }.bind(this),
-        );
-      },
-    });
+    this.pool = createPool(config);
 
+    // force charset (character-set-client-handshake=OFF || skip-character-set-client-handshake)
     this.getPool().on('connection', (connection) => {
       connection.query(`SET NAMES ${config.charset}`);
     });

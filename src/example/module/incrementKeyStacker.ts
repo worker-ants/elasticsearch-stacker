@@ -32,21 +32,28 @@ export class IncrementKeyStacker extends Stacker {
   }
 
   public async connectMysql(mysqlConfig: MysqlConfig) {
-    this.dataSource = new DataSource(mysqlConfig).getPool();
+    this.dataSource = new DataSource({
+      ...mysqlConfig,
+      namedPlaceholders: true,
+    }).getPool();
   }
 
   public async setCacheInitialize() {
     await this.dataSource.execute(
-      `insert into cache (agent, position) values (?, '{}')
+      `insert into cache (agent, position) values (:agentId, '{}')
         on duplicate key update agent = agent;`,
-      [this.getAgentId()],
+      {
+        agentId: this.getAgentId(),
+      },
     );
   }
 
   protected async getCursorCache(): Promise<IncrementKeyCursor> {
     const [rows] = await this.dataSource.execute(
-      `select position from cache where agent = ?`,
-      [this.getAgentId()],
+      `select position from cache where agent = :agentId`,
+      {
+        agentId: this.getAgentId(),
+      },
     );
     const position = rows?.[0].position ?? {};
     return {
@@ -56,8 +63,11 @@ export class IncrementKeyStacker extends Stacker {
 
   protected async setCursorCache(cursor: IncrementKeyCursor) {
     const result = await this.dataSource.execute(
-      `update cache set position = ? where agent = ?`,
-      [JSON.stringify(cursor), this.getAgentId()],
+      `update cache set position = :position where agent = :agentId`,
+      {
+        position: JSON.stringify(cursor),
+        agentId: this.getAgentId(),
+      },
     );
     return !!result;
   }
@@ -89,11 +99,15 @@ export class IncrementKeyStacker extends Stacker {
             from
                 dummy
             where
-                id > ? and id <= ?
+                id > :startCursor and id <= :endCursor
             order by id
-            limit ?
+            limit :chunkLimit
            `,
-        [startCursor.id, endCursor.id, this.chunkLimit],
+        {
+          startCursor: startCursor.id,
+          endCursor: endCursor.id,
+          chunkLimit: this.chunkLimit,
+        },
       );
       return rows;
     })(startCursor, endCursor);
