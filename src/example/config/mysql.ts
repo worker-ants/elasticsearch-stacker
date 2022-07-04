@@ -8,6 +8,9 @@ export interface MysqlConfig {
   user: string;
   password: string;
   timezone: TimeZone;
+  charset: string;
+  connectionLimit: number;
+  queueLimit: number;
 }
 export const mysqlConfig: MysqlConfig = {
   host: process.env?.MYSQL_HOST,
@@ -16,4 +19,7 @@ export const mysqlConfig: MysqlConfig = {
   user: process.env?.MYSQL_USER,
   password: process.env?.MYSQL_PASSWORD,
   timezone: process.env?.MYSQL_TIMEZONE as TimeZone,
+  charset: process.env?.MYSQL_CHARSET ?? 'utf8mb4',
+  connectionLimit: parseInt(process.env?.CONNECTION_LIMIT || '10', 10),
+  queueLimit: parseInt(process.env?.QUEUE_LIMIT || '0', 10),
 };

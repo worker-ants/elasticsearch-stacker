@@ -1,4 +1,4 @@
-import { createConnection, Connection } from 'mysql2/promise';
+import { Pool } from 'mysql2/promise';
 import Stacker from '../../stacker';
 import { MysqlConfig } from '../config/mysql';
 import {
@@ -10,6 +10,7 @@ import { Cursor } from '../../type/cursor';
 import { Config } from '../../interface/config';
 import { BulkType } from '../../enum/bulkType';
 import { Util } from './util';
+import { DataSource } from './dataSource';
 
 interface TimestampCursor extends Cursor {
   timestamp: number;
@@ -25,7 +26,7 @@ export class TimestampStacker extends Stacker {
   private readonly agentName: string;
   private readonly chunkLimit: number;
   private readonly indexName: string;
-  private mysql: Connection;
+  private dataSource: Pool;
 
   public constructor(config: TimestampConfig) {
     super(config);
@@ -36,18 +37,11 @@ export class TimestampStacker extends Stacker {
   }
 
   public async connectMysql(mysqlConfig: MysqlConfig) {
-    this.mysql = await createConnection({
-      host: mysqlConfig.host,
-      port: mysqlConfig.port,
-      database: mysqlConfig.database,
-      user: mysqlConfig.user,
-      password: mysqlConfig.password,
-      timezone: mysqlConfig.timezone,
-    });
+    this.dataSource = new DataSource(mysqlConfig).getPool();
   }
 
   public async setCacheInitialize() {
-    await this.mysql.execute(
+    await this.dataSource.execute(
       `insert into cache (agent, position) values (?, '{}')
         on duplicate key update agent = agent;`,
       [this.getAgentId()],
@@ -55,7 +49,7 @@ export class TimestampStacker extends Stacker {
   }
 
   protected async getCursorCache(): Promise<TimestampCursor> {
-    const [rows] = await this.mysql.execute(
+    const [rows] = await this.dataSource.execute(
       `select position from cache where agent = ?`,
       [this.getAgentId()],
     );
@@ -67,7 +61,7 @@ export class TimestampStacker extends Stacker {
   }
 
   protected async setCursorCache(cursor: TimestampCursor) {
-    const result = await this.mysql.execute(
+    const result = await this.dataSource.execute(
       `update cache set position = ? where agent = ?`,
       [JSON.stringify(cursor), this.getAgentId()],
     );
@@ -75,7 +69,7 @@ export class TimestampStacker extends Stacker {
   }
 
   protected async getLatestCursor(): Promise<TimestampCursor> {
-    const [rows] = await this.mysql.execute(
+    const [rows] = await this.dataSource.execute(
       `
           select
             *
@@ -126,7 +120,7 @@ export class TimestampStacker extends Stacker {
         this.chunkLimit,
       ];
 
-      const [rows] = await this.mysql.execute(
+      const [rows] = await this.dataSource.execute(
         `
             select
                 *

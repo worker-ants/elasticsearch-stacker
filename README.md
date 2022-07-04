@@ -3,7 +3,6 @@ custom data sync to elastic search
 
 ## @todo improve example
 - move position cache to redis
-- use MYSQL connection pool
 
 ## flow
 ![flow-diagram](/doc/flow-diagram.jpg)
