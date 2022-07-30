@@ -2,6 +2,10 @@ import { createClient } from 'redis';
 import { RedisConfig } from '../config/redis';
 import { RedisClientType } from '@redis/client/dist/lib/client';
 
+enum Result {
+  OK = 'OK',
+}
+
 export class CacheStore {
   private readonly client: RedisClientType;
 
@@ -26,7 +30,7 @@ export class CacheStore {
   }
 
   public async set(key: string, value: string): Promise<boolean> {
-    return (await this.client.set(key, value)) === 'OK';
+    return (await this.client.set(key, value)) === Result.OK;
   }
 
   public async get(key: string): Promise<string> {
